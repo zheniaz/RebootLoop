@@ -45,7 +45,7 @@ namespace RebootLoop
                     {
                         Console.WriteLine(@"Create Shortcut of RebootLoop, win+r 'shell:startup', and move shortcut to your startup forlder");
                         // CreateShortcut(StartupDirectoryFullPath, Constants.RebootLoopShortcutName);
-                        CreateShortCut2(StartupDirectoryFullPath, AppFullPath, Constants.RebootLoopShortcutName);
+                        // CreateShortCut2(StartupDirectoryFullPath, AppFullPath, Constants.RebootLoopShortcutName);
                     }
                     Reboot();
                 }
@@ -109,11 +109,14 @@ namespace RebootLoop
                 return;
             }
             string time = (NeedToReboot - RebootCount == 1) ? "time" : "times";
-            int timesLeftToReboot = 0;
             Console.WriteLine($"{NeedToReboot - RebootCount} {time} left to reboot the system");
             Console.WriteLine("Rebooting System...");
+
+            SetAutoLogOn();
+
             Thread.Sleep(3000);
-            //System.Diagnostics.Process.Start("ShutDown", "-r -t 0");
+
+            System.Diagnostics.Process.Start("ShutDown", "-r -t 0");
         }
 
         public bool CheckIsLogFileExists()
@@ -276,6 +279,25 @@ namespace RebootLoop
             return path;
         }
 
+        private void RunCMDCommand(string CMDCommand)
+        {
+            System.Diagnostics.Process process = new System.Diagnostics.Process();
+            System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo();
+            startInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+            startInfo.FileName = "cmd.exe";
+            startInfo.Arguments = CMDCommand;
+            process.StartInfo = startInfo;
+            process.Start();
+        }
+
+        private void SetAutoLogOn()
+        {
+            RunCMDCommand($"REG ADD {"HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon"} /v AutoAdminLogon /t REG_SZ /d 1 /f");
+            RunCMDCommand($"REG ADD {"HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon"} /v DefaultDomainName /t REG_SZ /d INTOWINDOWS /f");
+            RunCMDCommand($"REG ADD {"HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon"} /v DefaultUserName /t REG_SZ /d admin /f");
+            RunCMDCommand($"REG ADD {"HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon"} /v DefaultPassword /t REG_SZ /d 1 /f");
+        }
+
         public void CreateShortCut2(string shorcutPath, string shortcutTarget, string ShortCutName)
         {
             if (!IsShortcutOfRebootLoopExists)
@@ -304,7 +326,7 @@ namespace RebootLoop
             }
         }
 
-        #region This way not working, need to investigate and fix
+        #region This CreatingShortcut way not working, need to investigate and fix
 
         public bool CreateShortcut(string directoryFullPath, string fileName)
         {
