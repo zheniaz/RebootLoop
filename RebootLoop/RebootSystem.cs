@@ -123,7 +123,7 @@ namespace RebootLoop
             RemoveFile(StartupDirectoryFullPath, Constants.RebootLoopShortcutName + ".lnk");
         }
 
-        #region File Working Region
+        #region Region For Working  With Files
 
         public bool CheckIfFileExists(string filePath)
         {
@@ -280,7 +280,6 @@ namespace RebootLoop
                 shortcut.Save();
             }
         }
-
 
         #endregion
 
