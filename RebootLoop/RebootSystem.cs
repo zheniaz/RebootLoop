@@ -127,7 +127,6 @@ namespace RebootLoop
 
         public bool CheckIfFileExists(string filePath)
         {
-            Console.WriteLine($"In CheckIfFileExists, path: {filePath}");
             bool isFileExists = System.IO.File.Exists(filePath);
             return isFileExists;
         }

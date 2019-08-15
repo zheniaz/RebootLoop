@@ -20,7 +20,7 @@ namespace RebootLoop
             {
                 return;
             }
-            Console.WriteLine($"IsLogFileExists: {_rebootSystem.IsLogFileExists}");
+            
             if (_rebootSystem.IsLogFileExists)
             {
                 _rebootSystem.Reboot();
