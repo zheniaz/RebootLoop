@@ -24,12 +24,12 @@ namespace RebootLoop
         public int NeedToReboot { get { return GetCountNeedToReboot(); } set { } }
         public int RebootCount = 0;
 
-        public bool IsLogFileExists { get { return CheckIfFileExists($"{AppPath}\\{Constants.LogFileName}"); } set { } } // { get { return CheckIsLogFileExists(); } set { } }
+        public bool IsLogFileExists { get { return CheckIfFileExists($"{AppPath}\\{Constants.LogFileName}"); } set { } }
         public bool IsShortcutOfRebootLoopExists { get { return CheckIfFileExists($"{StartupDirectoryFullPath}\\{Constants.RebootLoopShortcutName}.lnk"); } }
 
         public RebootSystem()
         {
-            this.RebootCount = GetRebootCount();
+            this.RebootCount = GetRebootCountFromLogFile();
         }
 
         public void CheckIfWantToReboot()
@@ -43,9 +43,8 @@ namespace RebootLoop
                     CreateLogFile(rebootCount);
                     if (!IsShortcutOfRebootLoopExists)
                     {
-                        Console.WriteLine(@"Create Shortcut of RebootLoop, win+r 'shell:startup', and move shortcut to your startup forlder");
-                        // CreateShortcut(StartupDirectoryFullPath, Constants.RebootLoopShortcutName);
-                        // CreateShortCut2(StartupDirectoryFullPath, AppFullPath, Constants.RebootLoopShortcutName);
+                        CreateShortcut(AppPath, Constants.RebootLoopShortcutName);
+                        MoveFileToFolder(AppPath + "\\" + Constants.RebootLoopShortcutName + ".lnk", StartupDirectoryFullPath + "\\" + Constants.RebootLoopShortcutName + ".lnk");
                     }
                     Reboot();
                 }
@@ -97,33 +96,34 @@ namespace RebootLoop
 
         public void Reboot()
         {
-            //CheckYesOrNo("In Reboot(), go on?");
             if (RebootCount > 0 && RebootCount <= NeedToReboot)
             {
                 ReadAndRewriteRebootCountInLogFile();
                 AddEntryToLogFile();
             }
-            if (NeedToReboot == GetRebootsCount())
+            if (NeedToReboot == GetRebootsCountFromLogFile())
             {
                 FinishRebooting();
                 return;
             }
             string time = (NeedToReboot - RebootCount == 1) ? "time" : "times";
             Console.WriteLine($"{NeedToReboot - RebootCount} {time} left to reboot the system");
+            Thread.Sleep(1500);
             Console.WriteLine("Rebooting System...");
-
             SetAutoLogOn();
-
-            Thread.Sleep(3000);
-
+            Thread.Sleep(2500);
             System.Diagnostics.Process.Start("ShutDown", "-r -t 0");
         }
 
-        public bool CheckIsLogFileExists()
+        private void FinishRebooting()
         {
-            string filePath = $"{AppPath}\\{Constants.LogFileName}";
-            return System.IO.File.Exists(filePath);
+            RenameLogFile();
+            Console.WriteLine("Removing ShortCut from Sturtup folder");
+            Thread.Sleep(3000);
+            RemoveFile(StartupDirectoryFullPath, Constants.RebootLoopShortcutName + ".lnk");
         }
+
+        #region Region For Working  With Files
 
         public bool CheckIfFileExists(string filePath)
         {
@@ -185,7 +185,7 @@ namespace RebootLoop
             }
         }
 
-        public int GetRebootsCount()
+        public int GetRebootsCountFromLogFile()
         {
             string text = System.IO.File.ReadAllText($"{Constants.LogFileName}");
             string rebootCountString = Regex.Match(text, @"(?<=\|)(.*?)(?=\|)").ToString();
@@ -194,19 +194,7 @@ namespace RebootLoop
             return rebooted;
         }
 
-        public void AddShortcutToSturtup(string path)
-        {
-            using (PowerShell PowerShell = PowerShell.Create())
-            {
-                PowerShell.AddScript("$s1 = 'test1'; $s2 = 'test2'; $s1; write-error 'some error';start-sleep -s 7; $s2");
-
-                PSDataCollection<PSObject> outputCollection = new PSDataCollection<PSObject>();
-                IAsyncResult result = PowerShell.BeginInvoke();
-                PowerShell.AddParameter("param1", "parameter 1 value!");
-            }
-        }
-
-        private int GetRebootCount()
+        private int GetRebootCountFromLogFile()
         {
             if (!IsLogFileExists) return 0;
 
@@ -232,11 +220,12 @@ namespace RebootLoop
             return needToReboot;
         }
 
-        private void FinishRebooting()
+        private void MoveFileToFolder(string filePath, string destination)
         {
-            RenameLogFile();
-            // Removing ShortCut from Sturtup folder
-            RemoveFile(StartupDirectoryFullPath, Constants.RebootLoopShortcutName + ".lnk");
+            if (CheckIfFileExists(filePath))
+            {
+                System.IO.File.Move(filePath, destination);
+            }
         }
 
         private void RemoveFile(string fileFolder, string fileName)
@@ -257,7 +246,7 @@ namespace RebootLoop
             {
                 Console.WriteLine(ioExp.Message);
             }
-            Thread.Sleep(500);
+            Thread.Sleep(1500);
         }
 
         private void RenameLogFile()
@@ -278,6 +267,22 @@ namespace RebootLoop
             return path;
         }
 
+        public void CreateShortcut(string directoryFullPath, string fileName)
+        {
+            if (!IsShortcutOfRebootLoopExists)
+            {
+                WshShell shell = new WshShell();
+                string shortcutPathLink = directoryFullPath + $@"\{fileName}.lnk";
+                IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(directoryFullPath + $@"\{fileName}.lnk");
+                shortcut.Description = "New shortcut for a RebootLoop";
+                shortcut.WorkingDirectory = directoryFullPath;
+                shortcut.TargetPath = directoryFullPath + $@"\{Constants.AppName}";
+                shortcut.Save();
+            }
+        }
+
+        #endregion
+
         private void RunCMDCommand(string CMDCommand)
         {
             System.Diagnostics.Process process = new System.Diagnostics.Process();
@@ -296,80 +301,5 @@ namespace RebootLoop
             RunCMDCommand($"REG ADD {"HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon"} /v DefaultUserName /t REG_SZ /d admin /f");
             RunCMDCommand($"REG ADD {"HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon"} /v DefaultPassword /t REG_SZ /d 1 /f");
         }
-
-        public void CreateShortCut2(string shorcutPath, string shortcutTarget, string ShortCutName)
-        {
-            if (!IsShortcutOfRebootLoopExists)
-            {
-                byte[] bytes = null;
-
-                // Disable impersonation
-                using (System.Security.Principal.WindowsImpersonationContext ctx = System.Security.Principal.WindowsIdentity.Impersonate(IntPtr.Zero))
-                {
-                    // Get a temp file name (the shell commands won't work without .lnk extension)
-                    var path = Path.GetTempPath();
-                    string temp = Path.Combine(shorcutPath, ShortCutName + ".lnk");
-                    try
-                    {
-                        WshShell shell = new WshShell();
-                        IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(temp);
-                        shortcut.TargetPath = shortcutTarget;
-                        shortcut.Save();
-                        bytes = System.IO.File.ReadAllBytes(temp);
-                    }
-                    catch (Exception exception)
-                    {
-                        Console.WriteLine(exception.Message);
-                    }
-                }
-            }
-        }
-
-        #region This CreatingShortcut way not working, need to investigate and fix
-
-        public bool CreateShortcut(string directoryFullPath, string fileName)
-        {
-            if (!IsShortcutOfRebootLoopExists)
-            {
-                object shDesktop = (object)directoryFullPath;
-                WshShell shell = new WshShell();
-                string shortcutAddress = (string)shell.SpecialFolders.Item(ref shDesktop) + $@"\{fileName}.lnk";
-                IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(shortcutAddress);
-                shortcut.Description = "New shortcut for a RebootLoop";
-                shortcut.Hotkey = "Ctrl+Shift+N";
-                shortcut.TargetPath = directoryFullPath + $@"\{Constants.AppName}";
-
-                AddDirectorySecurity(directoryFullPath, Environment.UserDomainName + "\\" + Environment.UserName, FileSystemRights.FullControl, AccessControlType.Allow);
-                //SetAccessRule(directoryFullPath);
-
-                shortcut.Save();
-            }
-
-            return IsShortcutOfRebootLoopExists;
-        }
-
-        private void AddDirectorySecurity(string FileName, string Account, FileSystemRights Rights, AccessControlType ControlType)
-        {
-            // Create a new DirectoryInfo object.
-            DirectoryInfo dInfo = new DirectoryInfo(FileName);
-
-            // Get a DirectorySecurity object that represents the             current security settings.
-            DirectorySecurity dSecurity = dInfo.GetAccessControl();
-
-            // Add the FileSystemAccessRule to the security settings.
-           dSecurity.AddAccessRule(new FileSystemAccessRule(Account, Rights, ControlType));
-
-            // Set the new access settings.
-           dInfo.SetAccessControl(dSecurity);
-        }
-
-        private void SetAccessRule(string directory)
-        {
-            DirectorySecurity sec = Directory.GetAccessControl(directory);
-            FileSystemAccessRule accRule = new FileSystemAccessRule(Environment.UserDomainName + "\\" + Environment.UserName, FileSystemRights.FullControl, AccessControlType.Allow);
-            sec.AddAccessRule(accRule);
-        }
-
-        #endregion
     }
 }
